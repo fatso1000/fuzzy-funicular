@@ -8,7 +8,7 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-app.use("/git", gitRoutes);
+app.use("/api/git", gitRoutes);
 // app.use("/github", githubRoutes);
 
 const PORT = process.env.PORT || 3000;
