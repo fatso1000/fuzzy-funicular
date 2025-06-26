@@ -6,25 +6,41 @@ export default function getInitialBranchesName(branchName: string): string[] {
 }
 
 /**
- * Rotates two parallel arrays so that `defaultBranch` is first.
- * @param originBranches  e.g. ["main","develop","testing"]
- * @param branchPostfixes e.g. ["","-develop","-testing"]
- * @param defaultBranch   e.g. "develop"
+ * Rotates and optionally filters two parallel arrays so that `defaultBranch` is first.
+ *
+ * @param branchName - Used to derive branchPostfixes from your naming logic
+ * @param defaultBranch - The branch to move to the beginning
+ * @param includeOnly - (optional) list of branches you want to include in the result
  */
 export function rotateBranches(
   branchName: string,
-  defaultBranch: string
+  defaultBranch: string,
+  includeOnly?: string[]
 ): { originBranches: string[]; branchPostfixes: string[] } {
-  const idx = originBranches.indexOf(defaultBranch);
-  if (idx === -1) {
-    // if not found, return arrays unchanged
-    return { originBranches, branchPostfixes };
+  const branchPostfixes = getInitialBranchesName(branchName);
+
+  // Filter branches and postfixes based on includeOnly
+  let filtered: Array<{ branch: string; postfix: string }> = originBranches.map((branch, i) => ({
+    branch,
+    postfix: branchPostfixes[i],
+  }));
+
+  if (includeOnly) {
+    filtered = filtered.filter((entry) => includeOnly.includes(entry.branch));
   }
 
-  const rotate = <T>(arr: T[]) => arr.slice(idx).concat(arr.slice(0, idx));
+  const idx = filtered.findIndex((entry) => entry.branch === defaultBranch);
+  if (idx === -1) {
+    // if defaultBranch not found in filtered set
+    return {
+      originBranches: filtered.map((e) => e.branch),
+      branchPostfixes: filtered.map((e) => e.postfix),
+    };
+  }
 
+  const rotated = filtered.slice(idx).concat(filtered.slice(0, idx));
   return {
-    originBranches: rotate(originBranches),
-    branchPostfixes: rotate(getInitialBranchesName(branchName)),
+    originBranches: rotated.map((e) => e.branch),
+    branchPostfixes: rotated.map((e) => e.postfix),
   };
 }

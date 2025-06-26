@@ -4,6 +4,7 @@ import {
   addAndCommitToBranches,
   checkoutToDefault,
   createInitialBranches,
+  currentRepo,
   getCurrentBranch,
   pruneLocalBranches,
 } from "../services/gitService";
@@ -13,10 +14,22 @@ import { originBranches } from "../../helper/branches";
 
 const router = Router();
 
+router.get("/repo", async (req, res) => {
+  try {
+    const repo = await currentRepo();
+    sendSuccess(res, {
+      message: "...",
+      data: { repo },
+    });
+  } catch (err) {
+    returnErrorMessage(err, res);
+  }
+});
+
 router.post("/commit", async (req, res) => {
   try {
-    const { message, branchName } = req.body;
-    await addAndCommit(branchName, message);
+    const { message, branchName, stageAll } = req.body;
+    await addAndCommit(branchName, message, stageAll);
     sendSuccess(res, {
       message: "...",
       data: {},
@@ -28,10 +41,10 @@ router.post("/commit", async (req, res) => {
 
 router.post("/commit-cherry-all", async (req, res) => {
   try {
-    const { message, branchName, defaultBranch } = req.body;
+    const { message, branchName, defaultBranch, stageAll, includeOnly } = req.body;
     const currentBranch =
       originBranches.find((branch) => defaultBranch === branch) ?? (await getCurrentBranch());
-    await addAndCommitToBranches(branchName, message, currentBranch);
+    await addAndCommitToBranches(branchName, message, currentBranch, stageAll, includeOnly);
     sendSuccess(res, {
       message: "...",
       data: {},
@@ -43,17 +56,15 @@ router.post("/commit-cherry-all", async (req, res) => {
 
 router.post("/branches-creation", async (req, res) => {
   try {
-    // AGREGAR RAMAS A CREAR, POR EJEMPLO, SOLO CREAR `develop` O `testing`
     const {
       branchName,
       defaultBranch,
-      selectedBranches,
-    }: { branchName: string; defaultBranch: string | undefined; selectedBranches: string[] } =
-      req.body;
+      includeOnly,
+    }: { branchName: string; defaultBranch: string | undefined; includeOnly?: string[] } = req.body;
     const currentBranch =
       originBranches.find((branch) => defaultBranch === branch) ?? (await getCurrentBranch());
     if (!originBranches.includes(currentBranch)) await checkoutToDefault("main");
-    await createInitialBranches(branchName, currentBranch);
+    await createInitialBranches(branchName, currentBranch, includeOnly);
     await checkoutToDefault(currentBranch);
     sendSuccess(res, {
       message: "...",

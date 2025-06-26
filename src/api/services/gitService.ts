@@ -1,19 +1,22 @@
-import simpleGit from "simple-git";
 import getInitialBranchesName, { rotateBranches } from "../../helper/branches";
+import getGitClient from "../../helper/gitClient";
 
-const git = simpleGit({ baseDir: process.cwd() });
+const git = getGitClient();
 
-export async function addCommitAndPush(branchName: string, message: string) {
-  // 🟡 REVISAR A FUTURO, OPTAR POR OPTIONAL ADD
-  await git.add(".");
+export async function currentRepo() {
+  const root = await git.revparse(["--show-toplevel"]);
+  return root;
+}
+
+export async function addCommitAndPush(branchName: string, message: string, stageAll = true) {
+  if (stageAll) await git.add(".");
   await git.commit(message);
   await pushOrigin(branchName);
   console.log(`Added, commited and pushed to: ${branchName}, created at: ${new Date().getTime()}`);
 }
 
-export async function addAndCommit(branchName: string, message: string) {
-  // 🟡 REVISAR A FUTURO, OPTAR POR OPTIONAL ADD
-  await git.add(".");
+export async function addAndCommit(branchName: string, message: string, stageAll = true) {
+  if (stageAll) await git.add(".");
   await git.commit(message);
   console.log(`Added and commited to: ${branchName}, created at: ${new Date().getTime()}`);
 }
@@ -24,10 +27,17 @@ export async function cherryPick(branchName: string) {
   if (!lastHash) throw new Error(`No commits found on ${branchName}`);
 
   await git.checkout(branchName);
-  await git.raw(["cherry-pick", lastHash]);
-  console.log(
-    `✅ Cherry-picked ${lastHash} into ${branchName}, created at: ${new Date().getTime()}`
-  );
+
+  try {
+    await git.raw(["cherry-pick", lastHash]);
+    console.log(
+      `✅ Cherry-picked ${lastHash} into ${branchName}, created at: ${new Date().getTime()}`
+    );
+  } catch (e: any) {
+    console.error(`❌ Cherry-pick failed: ${e.message}`);
+    // optionally abort on conflict
+    // await git.raw(['cherry-pick', '--abort'])
+  }
 }
 
 export async function cherryPickAndPush(branchName: string) {
@@ -46,33 +56,46 @@ export async function cherryPickAndPush(branchName: string) {
 export async function addAndCommitToBranches(
   branchName: string,
   commitMessage: string,
-  defaultBranch: string
+  defaultBranch: string,
+  stageAll: boolean,
+  includeOnly?: string[]
 ) {
-  const { branchPostfixes } = rotateBranches(branchName, defaultBranch);
+  const { branchPostfixes } = rotateBranches(branchName, defaultBranch, includeOnly);
   for (const [index, branch] of branchPostfixes.entries()) {
     if (index > 0) await cherryPick(branch);
-    else await addAndCommit(branch, commitMessage);
+    else await addAndCommit(branch, commitMessage, stageAll);
   }
 }
 
-export async function addCommitAndPushToBranches(branchName: string, commitMessage: string) {
+export async function addCommitAndPushToBranches(
+  branchName: string,
+  commitMessage: string,
+  stageAll: boolean
+) {
   const initalBranches = getInitialBranchesName(branchName);
   for (const branch of initalBranches) {
-    await addCommitAndPush(branch, commitMessage);
+    await addCommitAndPush(branch, commitMessage, stageAll);
   }
 }
 
-export async function pushOrigin(branchName: string) {
-  await git.push("origin", branchName);
+export async function pushOrigin(branchName?: string) {
+  await git.push("origin", branchName ?? (await getCurrentBranch()));
 }
 
-export async function pullOrigin(branchName: string) {
-  const pull = await git.pull("origin", branchName);
-  return pull;
+export async function pullOrigin(branchName?: string) {
+  await git.pull("origin", branchName ?? (await getCurrentBranch()));
 }
 
-export async function createInitialBranches(branchName: string, defaultBranch = "main") {
-  const { branchPostfixes, originBranches } = rotateBranches(branchName, defaultBranch);
+export async function createInitialBranches(
+  branchName: string,
+  defaultBranch = "main",
+  includeOnly?: string[]
+) {
+  const { branchPostfixes, originBranches } = rotateBranches(
+    branchName,
+    defaultBranch,
+    includeOnly
+  );
   for (const [index, branch] of branchPostfixes.entries()) {
     await git.checkout(originBranches[index]);
     await pullOrigin(originBranches[index]);
